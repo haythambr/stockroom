@@ -1,16 +1,50 @@
-# Stockroom API: a shop back end that never oversells
+# Stockroom: an online shop that never oversells
 
-A REST API for an online store, built with **NestJS, Prisma and PostgreSQL**. It covers what a real shop needs behind the scenes: accounts, a searchable catalog, carts, checkout, orders, stock and payments. The focus is on the parts that usually go wrong in production: two people buying the last item at once, payment webhooks arriving twice, and stolen login tokens.
+A full-stack online store:
+- **React website** (TypeScript, Vite, Tailwind, TanStack Query) for shoppers and staff
+- **REST API** (NestJS, Prisma, PostgreSQL) behind it
 
-Built as a portfolio project by **Haytham Musa**, full-stack developer (Node.js, NestJS, Laravel).
+It covers what a real shop needs: accounts, a searchable catalog, carts, checkout, orders, stock and payments. The focus is on the parts that usually go wrong in production: two people buying the last item at once, payment webhooks arriving twice, and stolen login tokens.
 
-![Interactive API docs (Swagger), grouped in the order a shopper uses them](docs/docs-overview.png)
+Built as a portfolio project by **Haytham Musa**, full-stack developer (React, Node.js, NestJS, Laravel).
 
-| Try any endpoint from the browser | Errors are documented, not just successes |
+![The shop: browse, filter and search, with live stock counts](docs/web/web-shop.png)
+
+| Product page | Cart with live stock checks |
 | --- | --- |
-| ![GET /products with filters, run from the docs, with the JSON answer](docs/docs-products-response.png) | ![POST /orders documents a 409 when something sold out](docs/docs-checkout-409.png) |
+| ![Product page with quantity and stock](docs/web/web-product.png) | ![Cart with totals and free-shipping progress](docs/web/web-cart.png) |
+| **Order tracking** | **Admin: orders** |
+| ![Order page with a timeline: placed, paid, shipped, delivered](docs/web/web-order-paid.png) | ![Admin order list filtered by status, with ship and cancel actions](docs/web/web-admin-orders.png) |
+| **Admin: stock with a full history** | **On a phone** |
+| ![Stock panel: add or remove units with a note; every change is logged](docs/web/web-admin-stock.png) | <img src="docs/web/web-mobile-shop.png" width="300" alt="The shop on a phone"> |
 
-## What it does
+## The website (`web/`)
+
+**For shoppers**
+- **Browse the shop:** search, filter by category, price and in-stock, and sort. Filters live in the URL, so a filtered view can be shared.
+- **Product pages** show real stock ("Only 2 left", "Sold out").
+- **Cart:** live totals and a free-shipping progress bar.
+- **Checkout:** if something sells out while you're checking out, you get a clear message instead of an error page.
+- **Orders:** a status timeline (placed → paid → shipped → delivered) and cancelling before it ships.
+- **Pay (demo):** plays the payment provider by sending a signed payment event through the API's real webhook code. It only works when the server has `DEMO_PAYMENTS=true`.
+
+**For staff**
+- **Orders:** filter by status, then mark shipped or delivered, or cancel.
+- **Products:** hide or show a product, and add or remove stock with a note. A history panel shows every stock change.
+
+**How it's built**
+- **Server data:** loading and caching come from TanStack Query.
+- **Login:** the access token is kept only in memory, and the refresh token survives a reload. When a request gets a 401, the client refreshes once and retries. Requests that fail at the same moment share a single refresh, because the API accepts each refresh token only once (unit-tested).
+- **Protected pages:** pages that need sign-in send you to sign in, then bring you back. Admin pages also check your role.
+- **Product images:** the API has no photos, so each product gets an icon drawn on its category's colour.
+
+## The API
+
+Interactive docs (Swagger) at `/docs`, with every endpoint grouped in the order a shopper uses them, and errors documented as well as successes:
+
+| | |
+| --- | --- |
+| ![Swagger docs overview](docs/docs-overview.png) | ![POST /orders documents a 409 when something sold out](docs/docs-checkout-409.png) |
 
 | Area | Endpoints |
 | --- | --- |
@@ -69,19 +103,30 @@ sequenceDiagram
 docker compose up --build
 ```
 
-The API runs on http://localhost:3000, with docs at http://localhost:3000/docs and demo data loaded.
+This starts PostgreSQL, the API and the website, with demo data loaded:
+- **Shop:** http://localhost:8080
+- **API:** http://localhost:3000
+- **API docs:** http://localhost:3000/docs
 
-**Without Docker** (Node 20+, PostgreSQL 15+):
+**Without Docker** (Node 20+, PostgreSQL 15+). In one terminal, start the API:
 
 ```bash
 npm install
-cp .env.example .env          # then set DATABASE_URL and the two secrets
+cp .env.example .env          # set DATABASE_URL and the two secrets; DEMO_PAYMENTS=true for the Pay button
 npx prisma migrate deploy
 npx prisma db seed
-npm run start:dev
+npm run start:dev             # API on http://localhost:3000
 ```
 
-**Demo accounts** (password `password123`): `customer@stockroom.test` and `admin@stockroom.test`. In the docs, call `POST /auth/login`, press **Authorize** and paste the `accessToken`.
+In a second terminal, start the website:
+
+```bash
+cd web
+npm install
+npm run dev                   # shop on http://localhost:5173 (calls the API through /api)
+```
+
+**Demo accounts** (password `password123`): `customer@stockroom.test` and `admin@stockroom.test`. The sign-in page has one-click buttons for both. In the API docs, call `POST /auth/login`, press **Authorize** and paste the `accessToken`.
 
 **Pretend to be the payment provider:** place an order, then run:
 
@@ -94,18 +139,28 @@ This sends a correctly signed `payment.succeeded` event. Run it again with the s
 ## Tests
 
 ```bash
-npm test            # 13 unit tests: order status rules, totals, webhook signatures
-npm run test:e2e    # 34 end-to-end tests over HTTP against a real PostgreSQL test database
+npm test               # API: 14 unit tests (order status rules, totals, webhook signatures, demo-payment switch)
+npm run test:e2e       # API: 36 end-to-end tests over HTTP against a real PostgreSQL test database
+cd web && npm test     # Website: 12 tests (token refresh logic, product card, formatting)
 ```
 
-![34 end-to-end tests passing](docs/tests-e2e.png)
+![API end-to-end tests passing](docs/tests-e2e.png)
 
-The end-to-end tests boot the real app, with the same validation, guards and error handling as production, against a separate `stockroom_test` database. CI runs lint, build, and both test suites on every push, with PostgreSQL as a service container.
+The API's end-to-end tests boot the real app, with the same validation, guards and error handling as production, against a separate `stockroom_test` database.
+
+CI runs two jobs on every push:
+- **API:** lint, build, unit and end-to-end tests, with PostgreSQL as a service container.
+- **Website:** lint, tests and production build.
+
+I also checked the website with a scripted browser run covering signing in, cart, checkout, payment and the admin pages, on desktop and phone sizes.
 
 ## Project layout
 
 ```
-src/
+web/           React website (Vite, TypeScript, Tailwind, TanStack Query)
+  src/api/     typed API client with token refresh, React Query hooks
+  src/pages/   shop, product, cart, checkout, orders, sign-in, admin
+src/           NestJS API
   auth/        sign-up, sign-in, rotating refresh tokens
   products/    public catalog + admin products and stock
   cart/        cart with live stock checks
@@ -118,8 +173,12 @@ test/          end-to-end tests
 
 ## Tech
 
-NestJS 11 · TypeScript · Prisma 6 · PostgreSQL 17 · JWT · class-validator · Swagger/OpenAPI · Jest + Supertest · Docker Compose · GitHub Actions
+**Website:** React 19 · TypeScript · Vite · Tailwind CSS 4 · TanStack Query · React Router · Vitest + Testing Library · nginx
+
+**API:** NestJS 11 · Prisma 6 · PostgreSQL 17 · JWT · class-validator · Swagger/OpenAPI · Jest + Supertest
+
+**Ops:** Docker Compose · GitHub Actions
 
 ---
 
-A personal portfolio project. The shop, products and customers are fictional.
+A personal portfolio project. The shop, products and customers are fictional, and no real payments are taken.

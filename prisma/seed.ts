@@ -217,18 +217,10 @@ const catalog: Record<
 };
 
 async function main() {
-  await prisma.$transaction([
-    prisma.paymentEvent.deleteMany(),
-    prisma.stockMovement.deleteMany(),
-    prisma.orderItem.deleteMany(),
-    prisma.order.deleteMany(),
-    prisma.cartItem.deleteMany(),
-    prisma.cart.deleteMany(),
-    prisma.refreshToken.deleteMany(),
-    prisma.product.deleteMany(),
-    prisma.category.deleteMany(),
-    prisma.user.deleteMany(),
-  ]);
+  // Start from empty tables, with order numbers starting again at 1.
+  await prisma.$executeRawUnsafe(
+    'TRUNCATE payment_events, stock_movements, order_items, orders, cart_items, carts, refresh_tokens, products, categories, users RESTART IDENTITY CASCADE',
+  );
 
   const passwordHash = await bcrypt.hash('password123', 10);
   await prisma.user.create({

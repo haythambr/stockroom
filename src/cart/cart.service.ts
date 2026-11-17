@@ -27,6 +27,7 @@ export class CartService {
                 priceCents: true,
                 stock: true,
                 isActive: true,
+                category: { select: { slug: true } },
               },
             },
           },

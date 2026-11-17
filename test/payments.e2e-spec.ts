@@ -140,6 +140,56 @@ describe('Payment webhook (e2e)', () => {
   });
 });
 
+describe('Demo payments (e2e)', () => {
+  let ctx: TestContext;
+
+  beforeAll(async () => {
+    ctx = await createApp();
+  });
+  beforeEach(() => resetDb(ctx.prisma));
+  afterAll(() => ctx.app.close());
+
+  it('lets a customer pay their own order through the signed webhook path', async () => {
+    const user = await makeUser(ctx.prisma);
+    const auth = bearer(ctx.app, user);
+    const { body: order } = await placeOrder(ctx, auth, [
+      [await makeProduct(ctx.prisma), 1],
+    ]);
+
+    await ctx
+      .http()
+      .post(`/payments/demo/${order.id}`)
+      .set('Authorization', auth)
+      .expect(200)
+      .expect((r) => {
+        expect(r.body).toEqual({ received: true, outcome: 'marked_paid' });
+      });
+
+    expect(
+      await ctx.prisma.paymentEvent.count({ where: { orderId: order.id } }),
+    ).toBe(1);
+    expect(
+      (await ctx.prisma.order.findUniqueOrThrow({ where: { id: order.id } }))
+        .status,
+    ).toBe(OrderStatus.PAID);
+  });
+
+  it("can't pay someone else's order", async () => {
+    const owner = bearer(ctx.app, await makeUser(ctx.prisma));
+    const stranger = bearer(ctx.app, await makeUser(ctx.prisma));
+    const { body: order } = await placeOrder(ctx, owner, [
+      [await makeProduct(ctx.prisma), 1],
+    ]);
+
+    await ctx
+      .http()
+      .post(`/payments/demo/${order.id}`)
+      .set('Authorization', stranger)
+      .expect(404);
+    await ctx.http().post(`/payments/demo/${order.id}`).expect(401);
+  });
+});
+
 describe('Health and docs (e2e)', () => {
   let ctx: TestContext;
 

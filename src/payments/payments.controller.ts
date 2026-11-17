@@ -3,12 +3,15 @@ import {
   Controller,
   Headers,
   HttpCode,
+  Param,
+  ParseUUIDPipe,
   Post,
   Req,
 } from '@nestjs/common';
 import type { RawBodyRequest } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
+  ApiBearerAuth,
   ApiBody,
   ApiHeader,
   ApiOkResponse,
@@ -16,7 +19,8 @@ import {
 } from '@nestjs/swagger';
 import { SkipThrottle } from '@nestjs/throttler';
 import type { Request } from 'express';
-import { Public } from '../common/decorators/auth.decorators';
+import type { AuthUser } from '../common/decorators/auth.decorators';
+import { CurrentUser, Public } from '../common/decorators/auth.decorators';
 import { PaymentsService } from './payments.service';
 
 @ApiTags('Payments')
@@ -67,5 +71,19 @@ export class PaymentsController {
     }
 
     return this.payments.handleWebhook(req.rawBody.toString('utf8'), signature);
+  }
+
+  /**
+   * Demo mode only (DEMO_PAYMENTS=true): pay one of your own orders as if the payment provider
+   * had confirmed it. Used by the shop website's "Pay now (demo)" button.
+   */
+  @ApiBearerAuth()
+  @Post('demo/:orderId')
+  @HttpCode(200)
+  demoPay(
+    @CurrentUser() user: AuthUser,
+    @Param('orderId', ParseUUIDPipe) orderId: string,
+  ) {
+    return this.payments.demoPay(orderId, user.id);
   }
 }

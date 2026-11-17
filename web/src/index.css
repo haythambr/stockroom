@@ -1,0 +1,93 @@
+@import 'tailwindcss';
+
+/* Stockroom: warm paper, near-black ink, one ember accent. */
+@theme {
+  --font-sans: 'Manrope', ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'DM Serif Display', Georgia, serif;
+
+  --color-paper: #f6f3ec;
+  --color-paper-2: #ece7dc;
+  --color-card: #fffdf8;
+  --color-ink: #1b1b18;
+  --color-ink-2: #4a4943;
+  --color-ink-3: #8a877d;
+  --color-line: #e2dccf;
+  --color-ember: #e8642c;
+  --color-ember-dark: #c44e1b;
+  --color-ember-tint: #fbe6da;
+  --color-moss: #2f6b4f;
+  --color-moss-tint: #dcefe3;
+  --color-sky: #2f5d8c;
+  --color-sky-tint: #e0e9f3;
+  --color-amber: #a86a12;
+  --color-amber-tint: #f7ead2;
+  --color-rose: #b23a2e;
+  --color-rose-tint: #f6deda;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    @apply bg-paper font-sans text-ink antialiased;
+  }
+  :focus-visible {
+    outline: 3px solid var(--color-ember);
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+  [hidden] {
+    display: none !important;
+  }
+}
+
+/* Reusable building blocks (Tailwind v4 utilities, so they can be combined with @apply). */
+@utility btn {
+  @apply inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-full px-5 text-[15px] font-bold whitespace-nowrap transition-colors disabled:cursor-not-allowed disabled:opacity-45;
+}
+
+@utility btn-primary {
+  @apply btn bg-ink text-paper hover:bg-ink-2;
+}
+
+@utility btn-ember {
+  @apply btn bg-ember text-white hover:bg-ember-dark;
+}
+
+@utility btn-ghost {
+  @apply btn border-[1.5px] border-line bg-transparent text-ink hover:border-ink-3 hover:bg-card;
+}
+
+@utility btn-danger {
+  @apply btn border-[1.5px] border-rose-tint bg-transparent text-rose hover:bg-rose-tint;
+}
+
+@utility btn-sm {
+  @apply min-h-9 px-4 text-sm;
+}
+
+@utility input {
+  @apply min-h-11 w-full rounded-xl border-[1.5px] border-line bg-card px-3.5 text-base text-ink placeholder:text-ink-3 focus:border-ink-3 focus:outline-none;
+}
+
+@utility label {
+  @apply mb-1.5 block text-sm font-bold text-ink;
+}
+
+@utility card {
+  @apply rounded-2xl bg-card shadow-[0_1px_2px_rgba(27,27,24,0.05),0_10px_30px_-18px_rgba(27,27,24,0.25)];
+}
+
+@utility eyebrow {
+  @apply text-xs font-extrabold tracking-[0.14em] text-ember uppercase;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}

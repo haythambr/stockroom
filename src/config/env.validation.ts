@@ -36,6 +36,11 @@ class Env {
   @Min(1)
   ORDER_PAYMENT_MINUTES: number = 30;
 
+  /** Lets the shop website's "Pay now (demo)" button pay orders without a real provider. Off by default. */
+  @IsOptional()
+  @IsIn(['true', 'false'])
+  DEMO_PAYMENTS: string = 'false';
+
   @IsOptional()
   @Type(() => Number)
   @IsInt()

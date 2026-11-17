@@ -1,9 +1,16 @@
-import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { OrderStatus, Prisma } from '@prisma/client';
 import { OrdersService } from '../orders/orders.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { verifySignature } from './signature';
+import { randomBytes } from 'node:crypto';
+import { signPayload, verifySignature } from './signature';
 
 interface PaymentEventBody {
   id?: unknown;
@@ -93,6 +100,41 @@ export class PaymentsService {
       }
       throw error;
     }
+  }
+
+  /**
+   * Demo mode only: act as the payment provider for one of the customer's own orders. It builds
+   * and signs a real "payment.succeeded" event and sends it through handleWebhook, so the demo
+   * exercises exactly the same code as a real payment.
+   */
+  async demoPay(orderId: string, userId: string) {
+    if (this.config.get<string>('DEMO_PAYMENTS') !== 'true') {
+      throw new ForbiddenException(
+        'Demo payments are switched off on this server.',
+      );
+    }
+
+    const order = await this.prisma.order.findFirst({
+      where: { id: orderId, userId },
+      select: { id: true, totalCents: true },
+    });
+    if (!order) {
+      throw new NotFoundException('Order not found.');
+    }
+
+    const body = JSON.stringify({
+      id: `evt_demo_${randomBytes(8).toString('hex')}`,
+      type: 'payment.succeeded',
+      data: { orderId: order.id, amountCents: order.totalCents },
+    });
+
+    return this.handleWebhook(
+      body,
+      signPayload(
+        body,
+        this.config.getOrThrow<string>('PAYMENT_WEBHOOK_SECRET'),
+      ),
+    );
   }
 
   private decide(
