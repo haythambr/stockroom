@@ -148,9 +148,10 @@ cd web && npm test     # Website: 12 tests (token refresh logic, product card, f
 
 The API's end-to-end tests boot the real app, with the same validation, guards and error handling as production, against a separate `stockroom_test` database.
 
-CI runs two jobs on every push:
+CI runs three jobs on every push:
 - **API:** lint, build, unit and end-to-end tests, with PostgreSQL as a service container.
 - **Website:** lint, tests and production build.
+- **Docker:** builds and starts the whole stack with `docker compose up`, then checks it from outside like a visitor would (API health, website, deep links, the `/api` proxy with demo data, and a demo sign-in).
 
 I also checked the website with a scripted browser run covering signing in, cart, checkout, payment and the admin pages, on desktop and phone sizes.
 
