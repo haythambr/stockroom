@@ -26,8 +26,8 @@ jobs:
       JWT_SECRET: ci-secret-that-is-at-least-32-characters-long
       PAYMENT_WEBHOOK_SECRET: whsec_ci_secret_123
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
@@ -44,8 +44,8 @@ jobs:
       run:
         working-directory: web
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
@@ -54,3 +54,29 @@ jobs:
       - run: npm run lint
       - run: npm test
       - run: npm run build
+
+  # Proves the README's "docker compose up" really works: builds every image, starts the
+  # whole stack, and checks it from the outside like a visitor would.
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Build and start database, API and website
+        run: docker compose up --build --detach --wait --wait-timeout 300
+      - name: API is up and can reach the database
+        run: curl -fsS http://localhost:3000/health | tee /dev/stderr | grep -q '"database":"up"'
+      - name: Website is served
+        run: curl -fsS http://localhost:8080/ | grep -q '<div id="root">'
+      - name: Website deep links fall back to the app
+        run: curl -fsS http://localhost:8080/products/kit-mug-01 | grep -q '<div id="root">'
+      - name: Website reaches the API through /api, with demo data loaded
+        run: curl -fsS "http://localhost:8080/api/products?limit=1" | tee /dev/stderr | grep -q '"total":24'
+      - name: Demo customer can sign in through the website
+        run: |
+          curl -fsS -X POST http://localhost:8080/api/auth/login             -H 'Content-Type: application/json'             -d '{"email":"customer@stockroom.test","password":"password123"}' | grep -q accessToken
+      - name: Logs if anything failed
+        if: failure()
+        run: docker compose logs --no-color
+      - name: Stop
+        if: always()
+        run: docker compose down --volumes
