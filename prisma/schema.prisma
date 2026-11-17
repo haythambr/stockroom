@@ -1,0 +1,183 @@
+// Stockroom API: a shop back end with stock that can't be oversold.
+// Money is stored in cents (integers) so totals never pick up floating-point errors.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  CUSTOMER
+  ADMIN
+}
+
+enum OrderStatus {
+  PENDING_PAYMENT
+  PAID
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
+enum StockReason {
+  RESTOCK
+  ADJUSTMENT
+  ORDER
+  CANCEL
+}
+
+model User {
+  id           String         @id @default(uuid())
+  email        String         @unique
+  name         String
+  passwordHash String
+  role         Role           @default(CUSTOMER)
+  createdAt    DateTime       @default(now())
+  refreshTokens RefreshToken[]
+  cart         Cart?
+  orders       Order[]
+
+  @@map("users")
+}
+
+/// Refresh tokens rotate on every use. Each login starts a "family"; if an already-used token
+/// shows up again, someone copied it, so the whole family is revoked and the user signs in again.
+model RefreshToken {
+  id         String    @id @default(uuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash  String    @unique
+  family     String
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([family])
+  @@map("refresh_tokens")
+}
+
+model Category {
+  id       String    @id @default(uuid())
+  name     String
+  slug     String    @unique
+  products Product[]
+
+  @@map("categories")
+}
+
+model Product {
+  id          String          @id @default(uuid())
+  sku         String          @unique
+  name        String
+  slug        String          @unique
+  description String
+  priceCents  Int
+  stock       Int             @default(0)
+  isActive    Boolean         @default(true)
+  categoryId  String
+  category    Category        @relation(fields: [categoryId], references: [id])
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  movements   StockMovement[]
+  cartItems   CartItem[]
+  orderItems  OrderItem[]
+
+  @@index([categoryId])
+  @@index([isActive, priceCents])
+  @@map("products")
+}
+
+/// Every change to stock is written down, so the number on a product can always be explained.
+model StockMovement {
+  id        String      @id @default(uuid())
+  productId String
+  product   Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
+  change    Int
+  reason    StockReason
+  orderId   String?
+  note      String?
+  createdAt DateTime    @default(now())
+
+  @@index([productId, createdAt])
+  @@map("stock_movements")
+}
+
+model Cart {
+  id        String     @id @default(uuid())
+  userId    String     @unique
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items     CartItem[]
+  updatedAt DateTime   @updatedAt
+
+  @@map("carts")
+}
+
+model CartItem {
+  id        String  @id @default(uuid())
+  cartId    String
+  cart      Cart    @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  quantity  Int
+
+  @@unique([cartId, productId])
+  @@map("cart_items")
+}
+
+model Order {
+  id              String       @id @default(uuid())
+  number          Int          @unique @default(autoincrement())
+  userId          String
+  user            User         @relation(fields: [userId], references: [id])
+  status          OrderStatus  @default(PENDING_PAYMENT)
+  subtotalCents   Int
+  shippingCents   Int
+  totalCents      Int
+  shippingAddress Json
+  expiresAt       DateTime
+  paidAt          DateTime?
+  shippedAt       DateTime?
+  deliveredAt     DateTime?
+  cancelledAt     DateTime?
+  cancelReason    String?
+  createdAt       DateTime     @default(now())
+  items           OrderItem[]
+  paymentEvents   PaymentEvent[]
+
+  @@index([userId, createdAt])
+  @@index([status, expiresAt])
+  @@map("orders")
+}
+
+/// Name and price are copied onto the order, so later product edits never change past orders.
+model OrderItem {
+  id             String  @id @default(uuid())
+  orderId        String
+  order          Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId      String
+  product        Product @relation(fields: [productId], references: [id])
+  productName    String
+  sku            String
+  unitPriceCents Int
+  quantity       Int
+  lineTotalCents Int
+
+  @@map("order_items")
+}
+
+/// Payment provider events, keyed by the provider's own event id so a retried webhook is applied once.
+model PaymentEvent {
+  id         String   @id
+  type       String
+  orderId    String?
+  order      Order?   @relation(fields: [orderId], references: [id])
+  amountCents Int?
+  outcome    String
+  receivedAt DateTime @default(now())
+
+  @@map("payment_events")
+}

@@ -1,0 +1,32 @@
+# One-command demo:  docker compose up --build
+#   API:   http://localhost:3000
+#   Docs:  http://localhost:3000/docs
+
+services:
+  api:
+    build: .
+    ports: ["3000:3000"]
+    environment:
+      DATABASE_URL: postgresql://stockroom:stockroom@db:5432/stockroom?schema=public
+      JWT_SECRET: docker-demo-secret-change-me-0123456789abcdef
+      PAYMENT_WEBHOOK_SECRET: whsec_docker_demo_secret
+      SEED_DEMO_DATA: "true"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: stockroom
+      POSTGRES_PASSWORD: stockroom
+      POSTGRES_DB: stockroom
+    ports: ["5432:5432"]
+    volumes: [db-data:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U stockroom"]
+      interval: 3s
+      retries: 20
+
+volumes:
+  db-data:
